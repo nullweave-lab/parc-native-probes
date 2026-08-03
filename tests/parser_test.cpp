@@ -39,5 +39,13 @@ int main() {
         assert(summary.seccomp_present && summary.seccomp == 2);
         assert(summary.malformed_records == 0);
     }
+    {
+        std::istringstream input("TracerPid:\t42junk\nNoNewPrivs:\t\nSeccomp:\t2 \r\n");
+        const auto summary = parc::parse_proc_status(input);
+        assert(summary.tracer_pid_present && summary.tracer_pid == 0);
+        assert(summary.no_new_privs_present && summary.no_new_privs == 0);
+        assert(summary.seccomp_present && summary.seccomp == 2);
+        assert(summary.malformed_records == 2);
+    }
     return 0;
 }

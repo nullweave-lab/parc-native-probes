@@ -11,10 +11,17 @@ bool parse_u64(std::string_view text, std::uint64_t& output) {
     while (!text.empty() && (text.front() == ' ' || text.front() == '\t')) {
         text.remove_prefix(1);
     }
+    while (!text.empty() &&
+           (text.back() == ' ' || text.back() == '\t' || text.back() == '\r')) {
+        text.remove_suffix(1);
+    }
+    if (text.empty()) {
+        return false;
+    }
     const auto* begin = text.data();
     const auto* end = text.data() + text.size();
     const auto result = std::from_chars(begin, end, output);
-    return result.ec == std::errc{};
+    return result.ec == std::errc{} && result.ptr == end;
 }
 
 }  // namespace
