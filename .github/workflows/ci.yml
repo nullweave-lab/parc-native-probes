@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build host parser library
+        run: cmake -S . -B build -DPARC_BUILD_TESTS=ON
+      - name: Run host tests
+        run: |
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+      - name: Install pinned Android NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018"
+      - name: Cross-compile Android JNI library
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="$ANDROID_HOME/ndk/27.2.12479018"
+          mkdir -p android-libs
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cmake -S . -B "build-$abi" \
+              -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$abi" \
+              -DANDROID_PLATFORM=android-26 \
+              -DPARC_BUILD_TESTS=OFF \
+              -DCMAKE_BUILD_TYPE=Release
+            cmake --build "build-$abi" --parallel
+            test -s "build-$abi/libparc_probe_jni.so"
+            mkdir -p "android-libs/$abi"
+            cp "build-$abi/libparc_probe_jni.so" "android-libs/$abi/"
+          done
+      - name: Upload Android JNI libraries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: parc-native-probes-android-jni
+          path: android-libs
+          if-no-files-found: error
+          retention-days: 14
